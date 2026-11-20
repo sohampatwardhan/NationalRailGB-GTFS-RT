@@ -81,7 +81,7 @@ Match Amtrak-GTFS-RT where the design does not say otherwise.
 - Do not treat `X-Forwarded-For` or `Forwarded` as the client.
 - Do not amend a Darwin forecast, publish a working forecast, or invent a lat/lon, a platform, or a delay.
 - Do not publish a deactivated, deleted, or suppressed service.
-- Do not copy `catenarytransit/nationalrail-gtfs` (no licence file) or any other repository that has no licence.
+- Do not copy `catenarytransit/nationalrail-gtfs` (no licence file) or any other repository that has no licence. Do not copy or shell out to UK2GTFS. It is GPL-3, it reads CIF rather than Darwin Timetable Files, and this tree stays AGPL-3.0-only. It may be read as a reference.
 - Do not file issues or pull requests on `google/transit`. The gap note records the proposals; the owner decides whether to file them.
 - Do not push tags or publish to GHCR unless the owner asks.
 - Do not weaken the validator digest check to make a build pass.

@@ -20,7 +20,7 @@ Darwin data is not. The owner holds two Darwin subscriptions. The live feed is [
 
 ## Prior art
 
-No open-source Push Port to GTFS-Realtime converter was found. [gb-transit](https://github.com/planarnetwork/gb-transit) and [nationalrail-gtfs](https://github.com/catenarytransit/nationalrail-gtfs) build static GTFS from the CIF timetable. Their trip ids are not Darwin RIDs, so they are not the static half of this feed. Departure-board libraries and the RDM sample Kafka client stop at the transport.
+No open-source Push Port to GTFS-Realtime converter was found. [gb-transit](https://github.com/planarnetwork/gb-transit), [nationalrail-gtfs](https://github.com/catenarytransit/nationalrail-gtfs), and [UK2GTFS](https://github.com/ITSLeeds/UK2GTFS) build static GTFS from the CIF timetable. UK2GTFS is GPL-3, actively maintained, and a useful reference. It does not read Darwin Timetable Files, and its trip ids are not Darwin RIDs, so it is not called and it is not ported. Departure-board libraries and the RDM sample Kafka client stop at the transport.
 
 ## Status
 

@@ -14,7 +14,7 @@ Darwin covers schedules, forecasts, platforms, cancellations, and associations (
 
 The code in this repository is [AGPL-3.0-only](LICENSE).
 
-Darwin data is not. It is available to registered users under the [NRE Open Government Licence variation](https://opendata.nationalrail.co.uk/terms) and the Rail Data Marketplace product terms. Push feeds are free of the web-service usage cap. The terms allow publishing an adapted format, require National Rail attribution, and require that public forecasts stay consistent with Darwin. They do not allow the access credentials to be shared, or the raw feed to be resold unmodified. This program will copy public forecast times, attribute National Rail, and will not serve the raw XML.
+Darwin data is not. The live feed is [Darwin Real Time Train Information v2.0](https://raildata.org.uk/dashboard/dataProduct/P-d3bf124c-1058-4040-8a62-87181a877d59/overview) on the Rail Data Marketplace: a free Open licence, Kafka JSON and AVRO, distribution allowed, no resale as-is, commercial use only when the data is materially enhanced. The timetable files, which are the static base, are under OGL 3. Public forecasts are copied unchanged and attributed to National Rail. The raw topic and the hourly snapshots are not served. Kafka credentials stay out of the repository.
 
 ## Prior art
 

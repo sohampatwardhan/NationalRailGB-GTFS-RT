@@ -4,15 +4,15 @@
 
 **Goal:** Publish Great Britain's Darwin Push Port as a static GTFS zip plus GTFS-Realtime TripUpdates, VehiclePositions, and Alerts from one Rust process.
 
-**Architecture:** One process downloads the Darwin timetable, reference data, and a snapshot, consumes the Rail Data Marketplace XML topic, and keeps an in-memory store. A pure builder writes an immutable generation. axum serves the last good generation and never waits on the network.
+**Architecture:** One process downloads Darwin Timetable Files, CORPUS Location, and Knowledgebase Stations, pulls an hourly Push Port v18 snapshot over REST, consumes the Darwin RTTI v2.0 JSON topic, and keeps an in-memory store. A pure builder writes an immutable generation. axum serves the last good generation and never waits on the network.
 
-**Tech Stack:** Rust edition 2021, axum, the `gtfs-realtime` crate, `prost` via that crate's build, Kafka for the XML topic, the MobilityData GTFS validator CLI 8.0.1.
+**Tech Stack:** Rust edition 2021, axum, the `gtfs-realtime` crate, `prost` via that crate's build, Kafka for the JSON topic, the MobilityData GTFS validator CLI 8.0.1.
 
 ## Global Constraints
 
 Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every task includes these.
 
-- Code licence is AGPL-3.0-only. Darwin data stays under the NRE / RDM terms. Do not serve raw XML.
+- Code licence is AGPL-3.0-only. Darwin RTTI v2.0 is the subscribed Open licence. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`.
 - Public forecast times are copied. Working forecasts are not published. No invented delay, platform, or coordinate.
 - `trip_id` is the Darwin RID verbatim. `start_date` and `service_id` are the scheduled start date `YYYYMMDD`.
 - `route_id` and `agency_id` are the TOC code. `route_type` is `2`. `agency_timezone` is `Europe/London`.
@@ -39,7 +39,7 @@ Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every 
 | `src/config.rs` | Environment |
 | `src/model.rs` | `Service`, `Call`, `Association`, `Formation` |
 | `src/store.rs` | Apply messages, snapshot replace, passenger query |
-| `src/parse.rs` | Push Port XML fragment to `PushMessage` |
+| `src/parse.rs` | RTTI v2.0 JSON, and a Push Port v18 snapshot, both to `PushMessage` |
 | `src/static_gtfs.rs` | Zip bytes |
 | `src/trip_updates.rs` | TripUpdate `FeedMessage` |
 | `src/vehicle_positions.rs` | VehiclePosition `FeedMessage` |
@@ -48,7 +48,7 @@ Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every 
 | `src/generation.rs` | Assemble one generation from the store |
 | `src/serve.rs` | Router |
 | `src/main.rs` | Wire ingest, debounce, and HTTP |
-| `fixtures/` | Synthetic XML and a NaPTAN snippet |
+| `fixtures/` | Synthetic JSON messages and a small v18 snapshot |
 | `Dockerfile`, `docker-compose.yml` | One image, loopback publish |
 | `.github/workflows/ci.yml` | fmt, test, validator fixture, images |
 | `.github/dependabot.yml` | Cargo, Actions, Docker |
@@ -99,10 +99,10 @@ fn public_bind_without_peers_is_refused() {
 }
 
 #[test]
-fn debug_does_not_include_the_kafka_password() {
+fn debug_does_not_include_the_kafka_secret() {
     let cfg = Config::from_map(&map(&[
         ("NR_BIND", "127.0.0.1:8080"),
-        ("NR_KAFKA_PASSWORD", "s3cret-value"),
+        ("NR_KAFKA_CONSUMER_SECRET", "s3cret-value"),
     ]))
     .unwrap();
     let text = format!("{cfg:?}");
@@ -140,15 +140,16 @@ git commit -m "Add the generation HTTP API and peer allowlist."
 
 `CHANGELOG.md` gains `## [Unreleased]` with one line for the HTTP API.
 
-## Task 2: Darwin store and XML apply
+## Task 2: Darwin store and JSON apply
 
 **Files:**
 
 - Create: `src/model.rs`
 - Create: `src/parse.rs`
 - Create: `src/store.rs`
-- Create: `fixtures/ts-delayed.xml`
-- Create: `fixtures/schedule-deactivated.xml`
+- Create: `fixtures/ts-delayed.json`
+- Create: `fixtures/schedule-deactivated.json`
+- Create: `fixtures/snapshot-v18.xml`
 - Test: `src/store.rs`, `src/parse.rs`
 
 **Interfaces:**
@@ -221,15 +222,15 @@ impl DarwinStore {
 #[test]
 fn deactivated_service_is_not_published() {
     let mut store = DarwinStore::new();
-    store.apply(parse_fixture("fixtures/schedule-passenger.xml"));
-    store.apply(parse_fixture("fixtures/schedule-deactivated.xml"));
+    store.apply(parse_fixture("fixtures/schedule-passenger.json"));
+    store.apply(parse_fixture("fixtures/schedule-deactivated.json"));
     assert!(store.published().next().is_none());
 }
 
 #[test]
 fn delayed_flag_does_not_invent_a_time() {
     let mut store = DarwinStore::new();
-    store.apply(parse_fixture("fixtures/ts-delayed.xml"));
+    store.apply(parse_fixture("fixtures/ts-delayed.json"));
     let call = &store.service("202601151234567").unwrap().calls[0];
     assert!(call.delayed_unknown);
     assert!(call.forecast_arrival.is_none());
@@ -238,7 +239,7 @@ fn delayed_flag_does_not_invent_a_time() {
 #[test]
 fn platsup_marks_the_platform_suppressed() {
     let mut store = DarwinStore::new();
-    store.apply(parse_fixture("fixtures/ts-platform.xml"));
+    store.apply(parse_fixture("fixtures/ts-platform.json"));
     let platform = store.service("202601151234567").unwrap().calls[0]
         .platform
         .as_ref()
@@ -248,7 +249,7 @@ fn platsup_marks_the_platform_suppressed() {
 }
 ```
 
-Fixtures are synthetic and under 40 lines. `ts-delayed.xml` is one `TS` with `delayed="true"` and no `et` on the public arrival. `ts-platform.xml` sets `platsup="true"`. Include one association fixture used by Task 5, parsed here so the store test can round-trip `category`, both RIDs, the TIPLOC, and `cancelled`.
+Fixtures are synthetic and under 40 lines. `ts-delayed.json` is one train-status object with `delayed` true and no expected time on the public arrival. `ts-platform.json` sets the platform suppressed. `snapshot-v18.xml` is a minimal Push Port v18 snapshot that `parse_snapshot` turns into the same `PushMessage` values as the JSON fixtures. Include one association fixture used by Task 5, parsed here so the store test can round-trip `category`, both RIDs, the TIPLOC, and `cancelled`. Field names that the vendored schema does not define are not invented: the fixture uses names from `darwin-json-and-avro-schema.json` once that file is added, and the test fails if a required semantic (RID, delayed, platsup) is dropped.
 
 - [ ] **Step 2: Run the tests**
 
@@ -258,7 +259,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the minimum**
 
-`parse.rs` accepts a Push Port `Pport` fragment and returns one `PushMessage` or an error that names the element. `apply` for `Deactivated` sets `active = false`. `apply` for `Forecast` patches calls by TIPLOC and the scheduled public time, so a circular call is not ambiguous. A missing service is kept as a forecast-only stub and `published` still hides it until a passenger schedule arrives. `replace_all` clears the store first. Log on a parse error: element name only.
+`parse.rs` accepts one RTTI v2.0 JSON object and returns one `PushMessage` or an error that names the object type. `parse_snapshot` accepts a Push Port v18 snapshot and returns the same enum. Unknown JSON fields are ignored. `apply` for `Deactivated` sets `active = false`. `apply` for `Forecast` patches calls by TIPLOC and the scheduled public time, so a circular call is not ambiguous. A missing service is kept as a forecast-only stub and `published` still hides it until a passenger schedule arrives. `replace_all` clears the store first. Log on a parse error: object type only.
 
 - [ ] **Step 4: Run the tests**
 
@@ -279,7 +280,7 @@ git commit -m "Apply Darwin schedules, forecasts, and platforms to an in-memory 
 
 - Create: `src/static_gtfs.rs`
 - Create: `src/stops.rs`
-- Create: `fixtures/naptan-snippet.csv`
+- Create: `fixtures/corpus-location.csv`
 - Test: `src/static_gtfs.rs`
 
 **Interfaces:**
@@ -324,7 +325,7 @@ fn passenger_call_uses_the_rid_and_omits_a_passing_point() {
 }
 
 #[test]
-fn missing_naptan_coordinate_fails_the_build() {
+fn missing_corpus_coordinate_fails_the_build() {
     let store = store_with_call_and_pass();
     let err = build_static(&store, &StopCatalog::default(), &[]);
     assert!(err.is_err());
@@ -352,7 +353,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/static_gtfs.rs src/stops.rs fixtures/naptan-snippet.csv
+git add src/static_gtfs.rs src/stops.rs fixtures/corpus-location.csv
 git commit -m "Build static GTFS from published Darwin schedules."
 ```
 
@@ -720,7 +721,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the minimum**
 
-`assemble` calls the five builders. `main` spawns ingest and a debounced rebuild: wait 5 seconds after the last successful `apply`, then `assemble`. On `Err`, keep the previous `Generation` in the `RwLock`. Ingest downloads reference, NaPTAN, timetable, and snapshot before subscribing. Kafka reconnect uses exponential backoff starting at 1 second and capped at 60. A snapshot replace happens when the client is told the subscription gap cannot be recovered, and also once at startup. `Dockerfile` is multi-stage: `rust:1.96-bookworm` builder, `debian:bookworm-slim` runtime, tini as PID 1, JRE 17, the validator jar checked against the SHA-256 in Global Constraints during image build. Compose publishes `127.0.0.1:8090:8080` and sets `NR_ALLOWED_PEER_IPS=gateway`.
+`assemble` calls the five builders. `main` spawns ingest and a debounced rebuild: wait 5 seconds after the last successful `apply`, then `assemble`. On `Err`, keep the previous `Generation` in the `RwLock`. Ingest downloads CORPUS Location, Knowledgebase Stations, and the Darwin timetable, then the latest hourly snapshot, before subscribing to the JSON topic. The AVRO topic is not consumed. Kafka reconnect uses exponential backoff starting at 1 second and capped at 60. A snapshot replace happens when the client is told the subscription gap cannot be recovered, and also once at startup. `Dockerfile` is multi-stage: `rust:1.96-bookworm` builder, `debian:bookworm-slim` runtime, tini as PID 1, JRE 17, the validator jar checked against the SHA-256 in Global Constraints during image build. Compose publishes `127.0.0.1:8090:8080` and sets `NR_ALLOWED_PEER_IPS=gateway`.
 
 `ci.yml` jobs: `fmt` (`cargo fmt --all -- --check`), `test` (`cargo test --locked`), `validator` (run `scripts/validate-fixture.sh`, which builds a fixture generation and runs validator 8.0.1 and the MobilityData GTFS-Realtime validator; the realtime validator release tag is pinned in `tools/gtfs-realtime-validator.txt` and the script exits 2 if that file is missing), `image-amd64`, `image-arm64`. A step that compiles or builds an image is skipped when `scripts/ci-scope.sh` says every changed file is documentation (`*.md`, `docs/`, `LICENSE`). The skip is inside the step, not a workflow `paths` filter. `.github/dependabot.yml` matches Amtrak-GTFS-RT for Cargo (weekly, patch cooldown 3, minor 7, major 30, grouped minor/patch and major, open limit 2), GitHub Actions (monthly, cooldown 7), and Docker (monthly, cooldown 7, patch-only for `rust` and `debian`). No pip ecosystem.
 

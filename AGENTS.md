@@ -18,10 +18,10 @@ Any print or PDF output, and any page-size setting in documentation tooling, use
 
 ## How this feed differs from Amtrak
 
-- The source is the Rail Data Marketplace: the Darwin pub/sub XML topic, the Darwin timetable files, the reference data, and the snapshot files. It is not a polled JSON map, and it is not scraped.
+- The live source is Darwin Real Time Train Information v2.0 on Kafka (JSON topic). Static schedules are Darwin Timetable Files. Resync is the snapshots REST product (hourly Push Port v18). Stops come from CORPUS Location and Knowledgebase Stations. It is not the legacy STOMP broker, and it is not scraped.
 - There is no official static GTFS to download. This process builds the zip. `trip_id` is the Darwin RID.
 - There is no browser worker, no Chromium, and no Python service. Do not add one.
-- The data licence is the NRE Open Government Licence variation and the RDM product terms, not the AGPL. Forecast times are copied, not amended. Raw XML is never served. Credentials are never logged.
+- The data licence is the subscribed RTTI v2.0 Open licence (distribution allowed, no resale as-is, commercial use only when materially enhanced) and OGL 3 for the timetable files. Forecast times are copied, not amended. Raw topic and snapshot bodies are never served. Kafka bootstrap, consumer key, consumer secret, and group id are secrets and are never committed or logged.
 - Associations, platform confirmation, "delayed" with no estimate, formations, and passing points are specified in the design and in `docs/gtfs-gaps.md`. Do not encode a Join or a Divide as `block_id` or as `transfer_type` 4.
 - One image, `ghcr.io/sohampatwardhan/national-rail-gb-gtfs-rt`. No role environment variable, no second image, no extra feed URLs.
 
@@ -40,7 +40,7 @@ When implementation starts, the plan creates these paths. Do not create them ear
 | `src/alerts.rs` | Alerts |
 | `src/associations.rs` | Sidecar and `transfers.txt` rows |
 | `src/serve.rs` | axum, ETag, peer check |
-| `fixtures/` | Offline Darwin XML |
+| `fixtures/` | Offline JSON messages and a small v18 snapshot |
 | `Dockerfile`, `docker-compose.yml` | One image, Pi-shaped compose |
 | `.github/workflows/` | CI, release, Dependabot |
 
@@ -74,8 +74,8 @@ Match Amtrak-GTFS-RT where the design does not say otherwise.
 
 ## What agents must not do
 
-- Do not commit secrets, `.env` files, Kafka passwords, or object-storage keys.
-- Do not commit raw Darwin XML from a live feed, snapshot files, or NaPTAN dumps. Fixtures are small and synthetic.
+- Do not commit secrets, `.env` files, or the Kafka bootstrap, consumer key, consumer secret, or group id.
+- Do not commit raw topic payloads or hourly snapshots from a live feed. Fixtures are small and synthetic.
 - Do not log credentials, raw messages, or URLs that contain secrets.
 - Do not serve the generation directory with a generic file server.
 - Do not treat `X-Forwarded-For` or `Forwarded` as the client.

@@ -24,22 +24,27 @@ Three ways to produce the pair were considered.
 
 Two licence layers apply. The code in this repository is AGPL-3.0-only. The Darwin data is not.
 
-National Rail's developer page lists the Darwin Push Port, the Darwin timetable, and the LDB as open feeds under the NRE Open Government Licence, and points registration at the Rail Data Marketplace ([Darwin data feeds](https://www.nationalrail.co.uk/developers/darwin-data-feeds/)).
+The owner is subscribed, free, on an Open licence, to **Darwin Real Time Train Information v2.0** ([product](https://raildata.org.uk/dashboard/dataProduct/P-d3bf124c-1058-4040-8a62-87181a877d59/overview), id `P-d3bf124c-1058-4040-8a62-87181a877d59`). Access is Kafka pub/sub with a JSON topic and an AVRO topic. The subscribe page allows distribution, forbids reselling the data as-is, allows commercial use only where the data has been materially enhanced, and grants global use on a one-year term that renews automatically. A GTFS-Realtime feed is that enhancement. The raw JSON, AVRO, and snapshot bodies are not served.
 
-The NRE licence text on the legacy portal ([terms](https://opendata.nationalrail.co.uk/terms)) grants a worldwide, royalty-free, non-exclusive licence to copy, publish, distribute, and transmit the information, to adapt the format provided the content is not amended, and to include it in an end-user product. It requires attribution to NRE, forecasts in an end-user product that stay consistent with Darwin, and time-bound data displayed as Darwin directs. The access right is personal and may not be assigned. High-volume charges do not apply to push feeds. The [usage-charging document](https://assets.nationalrail.co.uk/e8xgegruud3g/1FMZaTCkitl5TXLHyEAEvw/a493521c9d9a4e90c012bfce5b16363a/Usage_Charging_Document_v06-01.pdf) (v06-01) says the same: push feeds have no free-usage cap and no per-enquiry charge; the 5 million enquiry threshold and the 5,000 enquiry/hour cap apply to the Darwin web services only.
+The older NRE portal terms ([terms](https://opendata.nationalrail.co.uk/terms)) still describe the same push feeds: adapt the format, do not amend the content, attribute National Rail, and keep public forecasts consistent with Darwin. The [usage-charging document](https://assets.nationalrail.co.uk/e8xgegruud3g/1FMZaTCkitl5TXLHyEAEvw/a493521c9d9a4e90c012bfce5b16363a/Usage_Charging_Document_v06-01.pdf) (v06-01) puts no enquiry cap on push feeds. The legacy STOMP broker is not the access path for this project.
 
-The Rail Data Marketplace is the current catalogue. Timetable files, reference data, and snapshots are separate file products from the pub/sub stream ([Darwin Publish and Subscribe via the RDM](https://www.rspaccreditation.org/downloadPublic.php?did=UDIHmUXqaFxqhsxmKpbrujGOzo2VC5GI9nmsT0IErZmBy0ZRvM)). The snapshot product is described as free to registered users, globally usable, retainable, attributed to National Rail, and not to be resold as-is or substantially unmodified ([snapshot product](https://raildata.org.uk/dashboard/dataProduct/P-8b01d5cf-2dd4-48b4-bb98-dc6d3520baf9/discussion)). A GTFS-Realtime feed is a format adaptation of the kind the NRE terms allow, not a resale of the XML. The STOMP password and the file credentials stay on the operator's machine.
+Kafka credentials are secrets and are never committed, logged, or put in an image:
+
+- `NR_KAFKA_BOOTSTRAP`
+- `NR_KAFKA_CONSUMER_KEY`
+- `NR_KAFKA_CONSUMER_SECRET`
+- `NR_KAFKA_GROUP_ID`
+
+`NR_KAFKA_TOPIC` is the JSON topic name. It is configuration, not a secret, and it has no default. A missing bootstrap, key, secret, group id, or topic refuses to start. `Debug` prints `set` or `unset` only.
 
 Consequences for the feed:
 
 - Public forecast times are copied from Darwin. They are not smoothed, rounded differently, or replaced with a model.
 - Working forecasts, which the Push Port spec says are operational and not for public display, are not published.
-- Raw Push Port XML, snapshots, and credentials are never served and never logged.
+- Raw topic payloads and snapshot bodies are never served and never logged.
 - `feed_info.txt` names National Rail as the source of the times and links to the National Rail developer page.
-- Deactivated, deleted, and suppressed services are not published. The Push Port spec (P75301004, Issue 27, §3.3.1) says a deactivated service should not be published to the public.
-- Until the owner confirms that a public relay is acceptable, the HTTP API uses the Amtrak peer allowlist. Loopback only, unless `NR_ALLOWED_PEER_IPS` lists peers. See the open question on the tracking issue.
-
-NaPTAN is a separate DfT dataset, used only for coordinates. It is not Darwin data.
+- Deactivated, deleted, and suppressed services are not published. The Push Port spec (P75301004, Issue 27, §3.3.1, published under [RSPS5051](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5051)) says a deactivated service should not be published to the public.
+- The HTTP API keeps the Amtrak peer allowlist so the Pi is not an open proxy by accident. That is an operational default, not a licence restriction: the subscribed terms allow distribution of the enhanced feed. Loopback only, unless `NR_ALLOWED_PEER_IPS` lists peers.
 
 ## Prior art
 
@@ -52,7 +57,13 @@ No open-source Darwin Push Port to GTFS-Realtime converter was found. Searches c
 | [raildatamarketplace/rdm-darwin-kafka-client](https://github.com/raildatamarketplace/rdm-darwin-kafka-client) | Sample consumer for the RDM Kafka topics | Transport only. |
 | Open Rail Data STOMP examples, `nre-darwin-py`, Darwin.Net, arrivals-kmp | STOMP clients or LDB departure boards | They do not emit GTFS-Realtime. |
 
-The interface this design targets is the RDM Darwin pub/sub XML topic, plus the Darwin timetable files, the reference data, and the snapshot files. The legacy STOMP broker on `opendata.nationalrail.co.uk` is not an implementation target. The Push Port message vocabulary is the same on both transports and is specified in Rail Delivery Group document P75301004, Issue 27, and summarised on the [Open Rail Data wiki](https://wiki.openraildata.com/index.php/Darwin:Push_Port).
+The live interface is Darwin RTTI v2.0 on Kafka. The JSON topic is the one this process consumes. The AVRO topic carries the same feed in another encoding and is not parsed in v1. The publisher says the inner JSON and AVRO schema is not fully documented. The contract to vendor, and not to invent, is the pair `darwin-base-schema.json` and `darwin-json-and-avro-schema.json` from that product's Documentation tab. Unknown fields are ignored. Where the schema is thin, field meaning comes from [RSPS5051](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5051) (Darwin interface specifications, version 25, 11 August 2026, including P75301004 Issue 27) and from [RSPS5053](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5053) (Darwin pub/sub via the Rail Data Marketplace, version 01-01, 31 March 2025).
+
+Static schedules come from **Darwin Timetable Files** (`P-9ca6bc7e-62e1-44d6-b93a-1616f7d2caf8`), a FILE product under OGL 3. The files hold schedules at least 48 hours ahead, derived from the Network Rail CIF, and they are the base Darwin uses for RTTI. The owner is not subscribed to this product yet. There is no other full CIF product on the marketplace. The static task cannot run against production files until that subscription exists. The CIF readers in gb-transit and nationalrail-gtfs stay prior art, not a second timetable.
+
+Resync uses **Darwin Real Time Train Information snapshots** (`P-8b01d5cf-2dd4-48b4-bb98-dc6d3520baf9`), a REST product of hourly Push Port v18 snapshots. The live topic is v2.0 JSON, so the snapshot parser and the JSON parser both emit `PushMessage` and do not share a decoder. A related Kafka product, Darwin Real Time Train Information (Push) v1.0 (`P-3f10bf96-d8e8-4041-aa5e-d75d82c45c4e`), is not the target.
+
+Stops come from **CORPUS Location data** (`P-d84fe2ed-5fac-416e-ac5b-d9612311f93c`) for TIPLOC, CRS, and coordinates, and from **Knowledgebase Stations** (`P-88ffe920-471c-4fd9-8e0d-95d5b9b7a257`, JSON `P-9c97bd03-e2f2-462d-860a-5bec92700c2d`, spec [RSPS5050](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5050)) for passenger names. NWR CORPUS (`P-4ae3e81c-7907-423b-940f-91ac6fdc69e1`) is the parent set; v1 reads the location slice, not the whole corpus. NWR BPLAN Geography is out of scope (no `shapes.txt` in v1). NaPTAN is not required.
 
 ## What is in the feed
 
@@ -60,22 +71,23 @@ One generation is one static GTFS zip and three protobuf products, plus one side
 
 | Product | Darwin source | GTFS target |
 | --- | --- | --- |
-| Static zip | Timetable schedules for passenger services, reference names, NaPTAN coordinates, confirmed platforms | `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar_dates.txt`, `stops.txt`, `feed_info.txt`, and `transfers.txt` only for Next and Link |
+| Static zip | Darwin Timetable Files, CORPUS Location, Knowledgebase Stations, confirmed platforms | `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar_dates.txt`, `stops.txt`, `feed_info.txt`, and `transfers.txt` only for Next and Link |
 | TripUpdates | TS forecasts and actuals, cancellations, platforms | One entity per published RID |
 | VehiclePositions | Last reported public location, formation, loading | One entity per RID that has a reported location |
 | Alerts | Cancellation reasons, late-running reasons, station messages, train alerts with passenger text | One entity per message |
 | `associations.json` | Association elements | Sidecar, not inside the zip |
 
-Out of the feed: empty coaching stock and any schedule with `isPassengerService` false, buses and ferries, working forecasts, operational alarms, passing points, unconfirmed platforms, suppressed platforms, deactivated and deleted schedules, and the raw XML.
+Out of the feed: empty coaching stock and any schedule with `isPassengerService` false, buses and ferries, working forecasts, operational alarms, passing points, unconfirmed platforms, suppressed platforms, deactivated and deleted schedules, and the raw topic and snapshot bodies.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph rdm [Rail Data Marketplace]
-    TT[Timetable and reference files]
-    SNAP[Snapshot files]
-    BUS[Pub/sub XML topic]
+    TT[Darwin Timetable Files]
+    REF[CORPUS Location and Knowledgebase]
+    SNAP[Snapshots REST, Push Port v18]
+    BUS[RTTI v2.0 JSON topic]
   end
   subgraph proc [One process]
     IN[Ingest]
@@ -84,6 +96,7 @@ flowchart LR
     HTTP[axum]
   end
   TT --> IN
+  REF --> IN
   SNAP --> IN
   BUS --> IN
   IN --> ST
@@ -97,22 +110,22 @@ One container. No browser and no second process. Darwin is an authenticated push
 | Piece | Responsibility |
 | --- | --- |
 | `Config` | Environment via `from_map`. Secrets never appear in `Debug` or logs. |
-| Ingest | Download timetable, reference, and snapshot files. Consume the XML topic. Apply messages to the store. On a gap longer than the broker retains, resync from a snapshot. |
+| Ingest | Download the timetable, CORPUS Location, and Knowledgebase Stations. Pull the latest hourly snapshot over REST. Consume the JSON topic. Apply everything as `PushMessage`. On a gap the broker will not fill, resync from a snapshot. |
 | `DarwinStore` | In-memory copy of activated passenger schedules, associations, forecasts, platforms, formations, loading, and passenger messages. |
-| `StopCatalog` | TIPLOC, CRS, name, and NaPTAN coordinate. Built from reference data and NaPTAN. |
+| `StopCatalog` | TIPLOC, CRS, passenger name, and coordinate from CORPUS Location and Knowledgebase Stations. |
 | Generation builder | Static zip, three protobuf feeds, associations sidecar. Pure function of the store, the catalogue, and a clock. |
-| HTTP | Serve the last complete generation from memory. Never wait on Kafka or object storage. |
+| HTTP | Serve the last complete generation from memory. Never wait on Kafka or the RDM REST calls. |
 
-Startup order: reference and NaPTAN, then the timetable, then a snapshot, then the live topic. The first generation is published only when all three of reference, timetable, and snapshot have been applied. A later failure leaves that generation in place.
+Startup order: CORPUS Location and Knowledgebase Stations, then the timetable, then a snapshot, then the JSON topic. The first generation is published only when the catalogue, the timetable, and a snapshot have all been applied. A later failure leaves that generation in place. The AVRO topic is not read.
 
 ```mermaid
 sequenceDiagram
   participant R as RDM files
-  participant K as XML topic
+  participant K as JSON topic
   participant S as Store
   participant G as Builder
   participant H as HTTP
-  R->>S: Reference, NaPTAN, timetable, snapshot
+  R->>S: CORPUS, Knowledgebase, timetable, v18 snapshot
   S->>G: First complete copy
   G->>H: Generation N
   K->>S: Schedule, association, TS, formation, loading, messages
@@ -138,7 +151,7 @@ These choices are deliberate. Changing them later breaks every consumer.
 
 `stop_id` for a scheduled calling point is the TIPLOC. `stop_code` is the CRS when the reference data maps it. Where several TIPLOCs share a CRS, a parent stop `crs:{CRS}` has `location_type` 1 and the TIPLOC stops are its children.
 
-Coordinates come from NaPTAN, matched on CRS. A passenger TIPLOC with a CRS and no NaPTAN coordinate fails the static build. The previous generation keeps being served. Coordinates are not invented, and `0,0` is not written. Passing and operational TIPLOCs are not stops.
+Coordinates come from CORPUS Location. Knowledgebase Stations supplies the passenger name when CORPUS has none. A passenger TIPLOC with no coordinate fails the static build. The previous generation keeps being served. Coordinates are not invented, and `0,0` is not written. Passing and operational TIPLOCs are not stops.
 
 A platform stop `{tiploc}:plat:{label}` exists only for a platform Darwin has marked confirmed and not suppressed. `platform_code` is Darwin's label. `StopTimeUpdate.stop_time_properties.assigned_stop_id` points at it, and `stop_sequence` is always set in that case. An unconfirmed platform is not assigned. A suppressed platform (`platsup` true, which also covers CIS suppression and location suppression) is not assigned and is not a stop. This loses the "expected but not confirmed" state; see `docs/gtfs-gaps.md`.
 
@@ -207,11 +220,11 @@ There is no `/trip-updates.pb`, `/vehicle-positions.pb`, `/alerts.pb`, or `/stat
 
 ## Errors
 
-A bad message is logged with its type and RID and skipped. The store is not cleared. A failed timetable or snapshot download keeps the last good generation. A static build or validator error keeps the last good generation. A missing platform, a broken association, or a missing reason code never drops TripUpdates. Kafka reconnects with backoff. Credentials, URLs that contain them, and raw XML bodies are not logged.
+A bad message is logged with its type and RID and skipped. The store is not cleared. A failed timetable or snapshot download keeps the last good generation. A static build or validator error keeps the last good generation. A missing platform, a broken association, or a missing reason code never drops TripUpdates. Kafka reconnects with backoff. Credentials, URLs that contain them, and raw JSON or snapshot bodies are not logged. Unknown JSON fields are ignored, because the published schema is incomplete.
 
 ## Testing
 
-Unit tests are offline. Config is injected with `from_map`. HTTP tests call the axum router with an injected peer and clock. Darwin fixtures are small XML fragments checked into `fixtures/`. A live connection test is `#[ignore]` and is not part of pull-request CI.
+Unit tests are offline. Config is injected with `from_map`. HTTP tests call the axum router with an injected peer and clock. Live-topic fixtures are small JSON documents checked into `fixtures/`. Snapshot fixtures are small Push Port v18 documents. A live Kafka or RDM test is `#[ignore]` and is not part of pull-request CI.
 
 The CI fixture builds a tiny store (one trip, one divide, one cancellation, one confirmed platform, one formation) through the real builder. The MobilityData GTFS validator 8.0.1 must report zero errors on the zip. The MobilityData GTFS-Realtime validator must accept the three protobuf files. No Darwin host is called.
 
@@ -229,11 +242,8 @@ Release tags `v*.*.*` publish the one image. The release is not part of this des
 - No official upstream static GTFS. This process builds the zip.
 - No track-fetcher, Hartford board, or NJ Transit RailData.
 - No second image and no `NR_ROLE`.
-- The data licence is the NRE / RDM licence, not a free right to republish the XML.
+- The data licence is the RTTI v2.0 Open licence and, for the timetable, OGL 3. It is not a right to republish the raw topic.
 
-## Open points
+## Open point
 
-Two questions are left for the owner, on the tracking issue, because the wrong answer changes the ingest client or the access control:
-
-1. Whether the served feed may be public, or stays peer-restricted.
-2. Which RDM products the owner can subscribe to. This design assumes the XML topic, the timetable files, the reference data, and the snapshots.
+One fact blocks production static files, and it is not a design choice. The owner is subscribed to Darwin RTTI v2.0 and is not yet subscribed to Darwin Timetable Files. The snapshots REST product and CORPUS Location are part of this design and are not confirmed as active subscriptions. Until the timetable subscription exists, the static task can be built and tested on fixtures only.

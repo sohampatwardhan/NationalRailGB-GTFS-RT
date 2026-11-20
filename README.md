@@ -8,6 +8,8 @@ The service is not built yet. The design, the implementation plan, and the place
 - [Implementation plan](docs/superpowers/plans/2026-11-20-darwin-gtfs-rt.md)
 - [GTFS gaps](docs/gtfs-gaps.md)
 
+Contains OpenStreetMap data © OpenStreetMap contributors. The track shapes in the static feed, once built, are derived from OpenStreetMap and offered under the Open Database Licence 1.0. The timetable is not. See [docs/licences.md](docs/licences.md).
+
 Darwin covers schedules, forecasts, platforms, cancellations, and associations (splits, joins, stock links, and passenger connections) for the national network. The process will hold a copy of that database and publish one generation at a time: a static zip, TripUpdates, VehiclePositions, Alerts, and an associations sidecar. The stack follows [Amtrak-GTFS-RT](https://github.com/sohampatwardhan/Amtrak-GTFS-RT): Rust, one container image on GHCR for amd64 and arm64, and a Raspberry Pi as the deploy target. The sources differ. Darwin is an authenticated push from the [Rail Data Marketplace](https://www.nationalrail.co.uk/developers/darwin-data-feeds/), and National Rail does not publish a static GTFS file to pair it with.
 
 ## Licence

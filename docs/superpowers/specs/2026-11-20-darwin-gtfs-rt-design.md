@@ -66,7 +66,14 @@ Static schedules come from **Darwin Timetable Files** (`P-9ca6bc7e-62e1-44d6-b93
 
 Resync uses **Darwin Real Time Train Information snapshots** (`P-8b01d5cf-2dd4-48b4-bb98-dc6d3520baf9`), a REST product of hourly Push Port v18 snapshots. The live topic is v2.0 JSON, so the snapshot parser and the JSON parser both emit `PushMessage` and do not share a decoder. The Push subscription (`P-3f10bf96-d8e8-4041-aa5e-d75d82c45c4e`) is a second Darwin subscription the owner holds. It is not a second parser. See `docs/licences.md`.
 
-Stops come from **CORPUS Location data** (`P-d84fe2ed-5fac-416e-ac5b-d9612311f93c`) for TIPLOC, CRS, and coordinates, and from **Knowledgebase Stations** (`P-88ffe920-471c-4fd9-8e0d-95d5b9b7a257`, JSON `P-9c97bd03-e2f2-462d-860a-5bec92700c2d`, spec [RSPS5050](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5050)) for passenger names. NWR CORPUS (`P-4ae3e81c-7907-423b-940f-91ac6fdc69e1`) is the parent set; v1 reads the location slice, not the whole corpus. NWR BPLAN Geography is out of scope (no `shapes.txt` in v1). NaPTAN is not required.
+Stops come from **CORPUS Location data** (`P-d84fe2ed-5fac-416e-ac5b-d9612311f93c`) for TIPLOC, CRS, and coordinates, and from **Knowledgebase Stations** (`P-88ffe920-471c-4fd9-8e0d-95d5b9b7a257`, JSON `P-9c97bd03-e2f2-462d-860a-5bec92700c2d`, spec [RSPS5050](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5050)) for passenger names. NWR CORPUS (`P-4ae3e81c-7907-423b-940f-91ac6fdc69e1`) is the parent set; v1 reads the location slice, not the whole corpus. NWR BPLAN Geography is out of scope. NaPTAN is not required.
+
+Track geometry is `shapes.txt`, from OpenStreetMap, not from the NWR Track Model. Two ways were compared.
+
+1. **pfaedle** ([ad-freiburg/pfaedle](https://github.com/ad-freiburg/pfaedle), GPL-3.0) map-matches a GTFS feed to OSM. `pfaedle -m rail -x great-britain-latest.osm.pbf feed.zip` writes `shapes.txt`. Its rail profile keeps `railway=rail`, light rail, tram, and narrow gauge, drops abandoned, proposed, and freight-only track, and does not hop across a crossing that is not a junction. That is the matcher.
+2. **A custom walk of a Geofabrik extract filtered to `railway=rail`.** Rejected as the matcher. Filtering to that one tag drops passenger lines tagged `light_rail`, keeps freight mains, and still needs a map-matcher at junctions. pfaedle already is that matcher. The Geofabrik file is still the input: [great-britain-latest.osm.pbf](https://download.geofabrik.de/europe/great-britain-latest.osm.pbf). pfaedle applies its own rail filter. We do not pre-cut the extract to `railway=rail`.
+
+Shapes are rebuilt when the timetable file changes, not on the realtime loop. The HTTP handlers never wait on pfaedle. A static zip may be published without `shapes.txt` until that job finishes. Realtime does not depend on it. The ODbL credit and the share-alike rule for `shapes.txt` are in `docs/licences.md`. pfaedle is invoked as a separate binary. Its source is not copied into this crate.
 
 ## What is in the feed
 
@@ -74,7 +81,7 @@ One generation is one static GTFS zip and three protobuf products, plus one side
 
 | Product | Darwin source | GTFS target |
 | --- | --- | --- |
-| Static zip | Darwin Timetable Files, CORPUS Location, Knowledgebase Stations, confirmed platforms | `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar_dates.txt`, `stops.txt`, `feed_info.txt`, and `transfers.txt` only for Next and Link |
+| Static zip | Darwin Timetable Files, CORPUS Location, Knowledgebase Stations, confirmed platforms, OpenStreetMap via pfaedle | `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar_dates.txt`, `stops.txt`, `shapes.txt`, `feed_info.txt`, and `transfers.txt` only for Next and Link. `shapes.txt` may be absent until the shapes job has run. |
 | TripUpdates | TS forecasts and actuals, cancellations, platforms | One entity per published RID |
 | VehiclePositions | Last reported public location, formation, loading | One entity per RID that has a reported location |
 | Alerts | Cancellation reasons, late-running reasons, station messages, train alerts with passenger text | One entity per message |
@@ -249,7 +256,7 @@ Release tags `v*.*.*` publish the one image. The release is not part of this des
 
 Fares (`P-03ed70e9-cc9d-45f3-949b-45adffc70791`) are out of v1. They are a later input to GTFS Fares v2, on their own agreement: free, global, distribution not for commercial gain, one month's notice. They do not block the realtime feed.
 
-The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is optional and out of scope for v1. The owner has no computer in the UK, and the Pi is in Boston, so this product must never be processed there. Nothing in v1 may depend on it. A possible later host is a UK cloud region, such as Oracle Cloud's London region, and only after the territory clause is confirmed to cover that. Darwin, the timetable files, and fares are global and stay on the Pi.
+The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is optional and out of scope for v1. The owner has no computer in the UK, and the Pi is in Boston, so this product must never be processed there. Nothing in v1 may depend on it. Shapes come from OpenStreetMap instead. A possible later use, only on a UK host such as Oracle Cloud's London region, and only after the territory clause is confirmed, is to check those shapes. It is not a second source of `shapes.txt`. Darwin, the timetable files, and fares are global and stay on the Pi.
 
 ## Open point
 

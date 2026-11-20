@@ -51,9 +51,19 @@ The OGL's "worldwide" grant and the schedule's "UK" restriction are both in the 
 
 The owner has no computer in the UK. The deploy target is a Raspberry Pi in Boston. Schedule 1 permits exercise of these rights in the UK, so the Track Model is optional and out of scope for v1. Nothing in v1 may depend on it, and it must never be downloaded or processed on that Pi.
 
-A later option, if the owner wants the geometry, is a host in a UK region, for example Oracle Cloud's London region, which the owner already uses. That still depends on confirming that the territory clause covers processing there. Darwin, the timetable files, and fares are global, so they are unaffected and stay on the Pi.
+A later option is a host in a UK region, for example Oracle Cloud's London region, which the owner already uses. That still depends on confirming that the territory clause covers processing there. The only use on that host would be to check shapes that were already built from OpenStreetMap. The Track Model is not the source of `shapes.txt`, and it is never processed on the Boston Pi. Darwin, the timetable files, and fares are global, so they are unaffected and stay on the Pi.
 
-If that confirmation is given, the model could place platform stops and give a VehiclePosition a coordinate taken from the track. It remains optional. v1 does not use it.
+## OpenStreetMap shapes
+
+`shapes.txt` is not taken from the Track Model. It is derived from OpenStreetMap, via [pfaedle](https://github.com/ad-freiburg/pfaedle) (`-m rail`) and the Geofabrik Great Britain extract [great-britain-latest.osm.pbf](https://download.geofabrik.de/europe/great-britain-latest.osm.pbf). The extract is a convenience copy of OpenStreetMap. The data licence is the [Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/). pfaedle itself is GPL-3.0 and is run as a separate program. Its licence does not attach to the shapes, and its source is not copied into this repository.
+
+ODbL attribution, used exactly:
+
+`Contains OpenStreetMap data © OpenStreetMap contributors`
+
+That sentence is in the README, in this file, and in `feed_info.txt` as the column `feed_attribution`. The timetable credit to National Rail stays in `feed_publisher_name` and `feed_publisher_url`. If the MobilityData validator reports an ERROR for the extra column, the column is dropped and the same sentence is written to `LICENSE-DATA.txt` inside the zip. Extra files are allowed by GTFS and ignored by consumers.
+
+ODbL share-alike applies to the derived shapes database, not to the Darwin timetable. `shapes.txt` is adapted OpenStreetMap railway geometry, so it is offered under ODbL 1.0: anyone may extract that file and reuse it under ODbL, with the credit above and a link to the licence. The rest of the zip (trips, times, stops from Darwin, CORPUS, and Knowledgebase) is not relicensed as ODbL. The zip therefore carries two notices, and the shapes file is the share-alike artefact.
 
 ## Fares, full refresh, weekly
 

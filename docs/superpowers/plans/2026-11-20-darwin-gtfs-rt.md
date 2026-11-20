@@ -12,7 +12,7 @@
 
 Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every task includes these.
 
-- Code licence is AGPL-3.0-only. Data licences are `docs/licences.md`. The published feed is free and is not sold. Attribute times to National Rail. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`. Do not add the NWR Track Model or the fares feed in these tasks. Never process the Track Model on the Boston Pi. Darwin, the timetable, and fares are global.
+- Code licence is AGPL-3.0-only. Data licences are `docs/licences.md`. The published feed is free and is not sold. Attribute times to National Rail. Attribute shapes with `Contains OpenStreetMap data © OpenStreetMap contributors`. `shapes.txt` is ODbL 1.0. The rest of the zip is not. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`. Do not add the NWR Track Model or the fares feed in these tasks. Never process the Track Model on the Boston Pi. Darwin, the timetable, and fares are global. Tasks 1 to 8 do not run pfaedle and do not block on `shapes.txt`.
 - Public forecast times are copied. Working forecasts are not published. No invented delay, platform, or coordinate.
 - `trip_id` is the Darwin RID verbatim. `start_date` and `service_id` are the scheduled start date `YYYYMMDD`.
 - `route_id` and `agency_id` are the TOC code. `route_type` is `2`. `agency_timezone` is `Europe/London`.
@@ -740,8 +740,69 @@ git add src/ingest.rs src/main.rs src/generation.rs Dockerfile docker-compose.ym
 git commit -m "Wire the generation builder, the container, and CI."
 ```
 
+## Task 9: OSM shapes
+
+This task does not block Tasks 1 to 8. Realtime feeds publish while `shapes.txt` is absent.
+
+**Files:**
+
+- Create: `src/shapes.rs`
+- Modify: `src/static_gtfs.rs` (attach `shape_id` when a shape table is present)
+- Modify: `README.md` (the OpenStreetMap credit line)
+- Test: `src/shapes.rs`
+
+**Interfaces:**
+
+- Consumes: a static zip from Task 3, without shapes
+- Produces: `pub fn attach_shapes(gtfs_zip: &[u8], shape_table: &ShapeTable) -> Vec<u8>` and `pub const OSM_CREDIT: &str = "Contains OpenStreetMap data © OpenStreetMap contributors"`
+
+The shape table is the `shapes.txt` pfaedle writes. The command, run off the realtime loop when the timetable file id changes, is:
+
+```bash
+pfaedle -m rail -x great-britain-latest.osm.pbf timetable.zip
+```
+
+The OSM file is the Geofabrik Great Britain extract. pfaedle's rail profile does the filtering. Do not pre-filter the extract to `railway=rail`. Do not copy pfaedle's source into this crate. Do not read the NWR Track Model.
+
+- [ ] **Step 1: Write the failing test**
+
+```rust
+#[test]
+fn shaped_zip_credits_openstreetmap_and_keeps_the_rid() {
+    let shaped = attach_shapes(&unshaped_zip(), &sample_shapes());
+    let files = unzip(&shaped);
+    assert!(files["shapes.txt"].contains("shape_york"));
+    assert!(files["trips.txt"].contains("202601151234567"));
+    assert!(files["feed_info.txt"].contains(OSM_CREDIT));
+    assert!(!files["trips.txt"].contains("block_id"));
+}
+```
+
+- [ ] **Step 2: Run the test**
+
+Run: `cargo test --locked shapes::`
+
+Expected: FAIL.
+
+- [ ] **Step 3: Implement the minimum**
+
+`attach_shapes` copies every existing GTFS file, sets `trips.shape_id` from the shape table, and adds `shapes.txt`. It writes `feed_attribution` on `feed_info.txt` with `OSM_CREDIT`. It does not alter stop times. If the validator later reports an ERROR for that column, write `LICENSE-DATA.txt` into the zip with the same sentence and the ODbL 1.0 URL, and leave the column out. The realtime loop does not call `pfaedle`.
+
+- [ ] **Step 4: Run the test**
+
+Run: `cargo test --locked shapes:: static_gtfs::`
+
+Expected: PASS. The Task 3 zip still has no `shapes.txt`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/shapes.rs src/static_gtfs.rs README.md
+git commit -m "Add OpenStreetMap shapes without blocking the realtime feeds."
+```
+
 ## Self-review
 
-- Spec coverage: licensing and the "do not amend forecasts" rule are Global Constraints and Tasks 4 and 6. Identity, stops, and passing points are Task 3. TripUpdates, platforms, and `NO_DATA` are Task 4. Associations are Task 5. VehiclePositions and loading are Task 6. Alerts are Task 7. HTTP, peers, container, validator, and Dependabot are Tasks 1 and 8. The two owner questions are not tasks.
+- Spec coverage: licensing and the "do not amend forecasts" rule are Global Constraints and Tasks 4 and 6. OpenStreetMap shapes are Task 9 and do not block Tasks 1 to 8. Identity, stops, and passing points are Task 3. TripUpdates, platforms, and `NO_DATA` are Task 4. Associations are Task 5. VehiclePositions and loading are Task 6. Alerts are Task 7. HTTP, peers, container, validator, and Dependabot are Tasks 1 and 8. The two owner questions are not tasks.
 - Placeholders: none. The realtime validator tag is pinned in a file the script requires, not left as a guess in this plan.
 - Types: `Service`, `Call`, `Platform`, `Generation`, `Transfer`, and `build_*` names match across tasks.

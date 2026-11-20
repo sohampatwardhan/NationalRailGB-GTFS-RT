@@ -49,9 +49,11 @@ Schedule 1 is narrower, and it is the part that matches the signed product:
 
 The OGL's "worldwide" grant and the schedule's "UK" restriction are both in the same agreement. This design does not treat the OGL sentence as permission to ignore the schedule.
 
-**Open question.** The owner's Raspberry Pi is in Boston, USA. Schedule 1 permits exercise of the licensed rights in the UK. It is unresolved whether reading, transforming, or serving this product on infrastructure outside the UK is inside that territory. Do not download or process the Track Model until the owner answers that.
+The owner has no computer in the UK. The deploy target is a Raspberry Pi in Boston. Schedule 1 permits exercise of these rights in the UK, so the Track Model is optional and out of scope for v1. Nothing in v1 may depend on it, and it must never be downloaded or processed on that Pi.
 
-If the territory allows it, the model is a later source of track and platform geometry. A VehiclePosition could then carry a coordinate taken from the model, and a platform stop could be placed on the track, instead of publishing no position at all. It is not an input to v1.
+A later option, if the owner wants the geometry, is a host in a UK region, for example Oracle Cloud's London region, which the owner already uses. That still depends on confirming that the territory clause covers processing there. Darwin, the timetable files, and fares are global, so they are unaffected and stay on the Pi.
+
+If that confirmation is given, the model could place platform stops and give a VehiclePosition a coordinate taken from the track. It remains optional. v1 does not use it.
 
 ## Fares, full refresh, weekly
 

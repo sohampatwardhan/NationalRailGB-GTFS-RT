@@ -249,10 +249,8 @@ Release tags `v*.*.*` publish the one image. The release is not part of this des
 
 Fares (`P-03ed70e9-cc9d-45f3-949b-45adffc70791`) are out of v1. They are a later input to GTFS Fares v2, on their own agreement: free, global, distribution not for commercial gain, one month's notice. They do not block the realtime feed.
 
-The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is out of v1. Schedule 1 limits exercise of the rights to the UK, and the Pi is in Boston. Whether processing it there is in scope is open. If it is, the model can later place platform stops and give a VehiclePosition a coordinate taken from the track, rather than none.
+The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is optional and out of scope for v1. The owner has no computer in the UK, and the Pi is in Boston, so this product must never be processed there. Nothing in v1 may depend on it. A possible later host is a UK cloud region, such as Oracle Cloud's London region, and only after the territory clause is confirmed to cover that. Darwin, the timetable files, and fares are global and stay on the Pi.
 
-## Open points
+## Open point
 
 The owner is not yet subscribed to Darwin Timetable Files. The snapshots product and CORPUS Location are part of this design and are not confirmed as active subscriptions. Until the timetable subscription exists, the static task can be built and tested on fixtures only.
-
-The Track Model territory question above is unanswered. Do not add that product to the pipeline meanwhile.

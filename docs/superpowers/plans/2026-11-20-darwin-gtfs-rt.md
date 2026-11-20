@@ -725,7 +725,7 @@ Expected: FAIL.
 
 `ci.yml` jobs: `fmt` (`cargo fmt --all -- --check`), `test` (`cargo test --locked`), `validator` (run `scripts/validate-fixture.sh`, which builds a fixture generation and runs validator 8.0.1 and the MobilityData GTFS-Realtime validator; the realtime validator release tag is pinned in `tools/gtfs-realtime-validator.txt` and the script exits 2 if that file is missing), `image-amd64`, `image-arm64`. A step that compiles or builds an image is skipped when `scripts/ci-scope.sh` says every changed file is documentation (`*.md`, `docs/`, `LICENSE`). The skip is inside the step, not a workflow `paths` filter. `.github/dependabot.yml` matches Amtrak-GTFS-RT for Cargo (weekly, patch cooldown 3, minor 7, major 30, grouped minor/patch and major, open limit 2), GitHub Actions (monthly, cooldown 7), and Docker (monthly, cooldown 7, patch-only for `rust` and `debian`). No pip ecosystem.
 
-`scripts/validate-fixture.sh` must not read `NR_KAFKA_PASSWORD`.
+`scripts/validate-fixture.sh` must not read `NR_KAFKA_CONSUMER_SECRET`.
 
 - [ ] **Step 4: Run the tests**
 

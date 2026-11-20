@@ -4,7 +4,7 @@ Instructions for coding agents working in this repository.
 
 ## Project
 
-National Rail GB GTFS-RT (AGPL-3.0-only) will publish GTFS-Realtime for Great Britain's national rail network from the Darwin Push Port, and the static GTFS that feed binds to. The design is `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. The implementation plan is `docs/superpowers/plans/2026-11-20-darwin-gtfs-rt.md`. Gaps between Darwin and GTFS are `docs/gtfs-gaps.md`.
+National Rail GB GTFS-RT (AGPL-3.0-only) will publish GTFS-Realtime for Great Britain's national rail network from the Darwin Push Port, and the static GTFS that feed binds to. The design is `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. The implementation plan is `docs/superpowers/plans/2026-11-20-darwin-gtfs-rt.md`. Gaps between Darwin and GTFS are `docs/gtfs-gaps.md`. Signed data licences are summarised in `docs/licences.md`.
 
 The repository does not yet contain a crate, a container, or a workflow. Do not invent a second architecture beside the design. Do not start implementation unless the owner asks for a plan task.
 
@@ -21,7 +21,7 @@ Any print or PDF output, and any page-size setting in documentation tooling, use
 - The live source is Darwin Real Time Train Information v2.0 on Kafka (JSON topic). Static schedules are Darwin Timetable Files. Resync is the snapshots REST product (hourly Push Port v18). Stops come from CORPUS Location and Knowledgebase Stations. It is not the legacy STOMP broker, and it is not scraped.
 - There is no official static GTFS to download. This process builds the zip. `trip_id` is the Darwin RID.
 - There is no browser worker, no Chromium, and no Python service. Do not add one.
-- The data licence is the subscribed RTTI v2.0 Open licence (distribution allowed, no resale as-is, commercial use only when materially enhanced) and OGL 3 for the timetable files. Forecast times are copied, not amended. Raw topic and snapshot bodies are never served. Kafka bootstrap, consumer key, consumer secret, and group id are secrets and are never committed or logged.
+- The signed Darwin schedule is the Push product in `docs/licences.md`: distribution to third parties, but not for commercial gain. Do not sell the feed, do not serve raw messages, and attribute published times to National Rail. v2.0 remains the JSON source. Forecast times are copied, not amended. Kafka bootstrap, consumer key, consumer secret, and group id are secrets and are never committed or logged. Do not download the NWR Track Model until the owner answers the UK-only territory question. Fares are not part of v1.
 - Associations, platform confirmation, "delayed" with no estimate, formations, and passing points are specified in the design and in `docs/gtfs-gaps.md`. Do not encode a Join or a Divide as `block_id` or as `transfer_type` 4.
 - One image, `ghcr.io/sohampatwardhan/national-rail-gb-gtfs-rt`. No role environment variable, no second image, no extra feed URLs.
 

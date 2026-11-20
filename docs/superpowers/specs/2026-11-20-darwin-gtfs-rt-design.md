@@ -22,11 +22,14 @@ Three ways to produce the pair were considered.
 
 ## Licensing and access
 
-Two licence layers apply. The code in this repository is AGPL-3.0-only. The Darwin data is not.
+Two licence layers apply. The code in this repository is AGPL-3.0-only. The rail data is not. The signed schedules are summarised in `docs/licences.md`. The agreements are not committed.
 
-The owner is subscribed, free, on an Open licence, to **Darwin Real Time Train Information v2.0** ([product](https://raildata.org.uk/dashboard/dataProduct/P-d3bf124c-1058-4040-8a62-87181a877d59/overview), id `P-d3bf124c-1058-4040-8a62-87181a877d59`). Access is Kafka pub/sub with a JSON topic and an AVRO topic. The subscribe page allows distribution, forbids reselling the data as-is, allows commercial use only where the data has been materially enhanced, and grants global use on a one-year term that renews automatically. A GTFS-Realtime feed is that enhancement. The raw JSON, AVRO, and snapshot bodies are not served.
+The owner holds two Darwin subscriptions.
 
-The older NRE portal terms ([terms](https://opendata.nationalrail.co.uk/terms)) still describe the same push feeds: adapt the format, do not amend the content, attribute National Rail, and keep public forecasts consistent with Darwin. The [usage-charging document](https://assets.nationalrail.co.uk/e8xgegruud3g/1FMZaTCkitl5TXLHyEAEvw/a493521c9d9a4e90c012bfce5b16363a/Usage_Charging_Document_v06-01.pdf) (v06-01) puts no enquiry cap on push feeds. The legacy STOMP broker is not the access path for this project.
+- **Darwin Real Time Train Information v2.0** (`P-d3bf124c-1058-4040-8a62-87181a877d59`) is the live feed. It is Kafka, with a JSON topic and an AVRO topic. v1 reads the JSON topic only. This stays the primary feed because it is the subscription that names a JSON encoding and the schema files the parser can be written against. The signed Schedule 1 for v2.0 was not in the pack, so this design does not quote a subscribe-page blurb as its licence.
+- **Darwin Real Time Train Information (Push)** (`P-3f10bf96-d8e8-4041-aa5e-d75d82c45c4e`) is the Darwin agreement that was read. Its permitted purpose allows use, copying, adapting, and aggregating, and distribution to third parties **but not for commercial gain**. A special condition also forbids resale as-is and allows commercial use only where the data is materially augmented. Clause 8.8 ranks Schedule 1 above that special condition, so the feed is published free of charge and is not sold. Attribution, when the data is published, is to National Rail. Territory is global. The term is one year and renews automatically; the consumer's notice is one week. Data already received may be kept. The agreement does not name a wire format, so the parser is not moved onto this product.
+
+The older NRE portal terms ([terms](https://opendata.nationalrail.co.uk/terms)) still say public forecasts must stay consistent with Darwin. This feed keeps that rule. The legacy STOMP broker is not the access path.
 
 Kafka credentials are secrets and are never committed, logged, or put in an image:
 
@@ -42,9 +45,9 @@ Consequences for the feed:
 - Public forecast times are copied from Darwin. They are not smoothed, rounded differently, or replaced with a model.
 - Working forecasts, which the Push Port spec says are operational and not for public display, are not published.
 - Raw topic payloads and snapshot bodies are never served and never logged.
-- `feed_info.txt` names National Rail as the source of the times and links to the National Rail developer page.
+- `feed_info.txt` attributes the times to National Rail and does not imply that National Rail or Rail Delivery Group endorse this feed.
 - Deactivated, deleted, and suppressed services are not published. The Push Port spec (P75301004, Issue 27, §3.3.1, published under [RSPS5051](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5051)) says a deactivated service should not be published to the public.
-- The HTTP API keeps the Amtrak peer allowlist so the Pi is not an open proxy by accident. That is an operational default, not a licence restriction: the subscribed terms allow distribution of the enhanced feed. Loopback only, unless `NR_ALLOWED_PEER_IPS` lists peers.
+- The feed is free to fetch. It is not a paid product. The HTTP API keeps the Amtrak peer allowlist so the Pi is not an open proxy by accident. Loopback only, unless `NR_ALLOWED_PEER_IPS` lists peers.
 
 ## Prior art
 
@@ -59,9 +62,9 @@ No open-source Darwin Push Port to GTFS-Realtime converter was found. Searches c
 
 The live interface is Darwin RTTI v2.0 on Kafka. The JSON topic is the one this process consumes. The AVRO topic carries the same feed in another encoding and is not parsed in v1. The publisher says the inner JSON and AVRO schema is not fully documented. The contract to vendor, and not to invent, is the pair `darwin-base-schema.json` and `darwin-json-and-avro-schema.json` from that product's Documentation tab. Unknown fields are ignored. Where the schema is thin, field meaning comes from [RSPS5051](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5051) (Darwin interface specifications, version 25, 11 August 2026, including P75301004 Issue 27) and from [RSPS5053](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5053) (Darwin pub/sub via the Rail Data Marketplace, version 01-01, 31 March 2025).
 
-Static schedules come from **Darwin Timetable Files** (`P-9ca6bc7e-62e1-44d6-b93a-1616f7d2caf8`), a FILE product under OGL 3. The files hold schedules at least 48 hours ahead, derived from the Network Rail CIF, and they are the base Darwin uses for RTTI. The owner is not subscribed to this product yet. There is no other full CIF product on the marketplace. The static task cannot run against production files until that subscription exists. The CIF readers in gb-transit and nationalrail-gtfs stay prior art, not a second timetable.
+Static schedules come from **Darwin Timetable Files** (`P-9ca6bc7e-62e1-44d6-b93a-1616f7d2caf8`). The owner has said this is a FILE product under OGL 3, with schedules at least 48 hours ahead derived from the Network Rail CIF, and that it is the base Darwin uses for RTTI. That agreement was not in the pack summarised in `docs/licences.md`. The owner is not subscribed to this product yet. There is no other full CIF product on the marketplace. The static task cannot run against production files until that subscription exists. The CIF readers in gb-transit and nationalrail-gtfs stay prior art, not a second timetable.
 
-Resync uses **Darwin Real Time Train Information snapshots** (`P-8b01d5cf-2dd4-48b4-bb98-dc6d3520baf9`), a REST product of hourly Push Port v18 snapshots. The live topic is v2.0 JSON, so the snapshot parser and the JSON parser both emit `PushMessage` and do not share a decoder. A related Kafka product, Darwin Real Time Train Information (Push) v1.0 (`P-3f10bf96-d8e8-4041-aa5e-d75d82c45c4e`), is not the target.
+Resync uses **Darwin Real Time Train Information snapshots** (`P-8b01d5cf-2dd4-48b4-bb98-dc6d3520baf9`), a REST product of hourly Push Port v18 snapshots. The live topic is v2.0 JSON, so the snapshot parser and the JSON parser both emit `PushMessage` and do not share a decoder. The Push subscription (`P-3f10bf96-d8e8-4041-aa5e-d75d82c45c4e`) is a second Darwin subscription the owner holds. It is not a second parser. See `docs/licences.md`.
 
 Stops come from **CORPUS Location data** (`P-d84fe2ed-5fac-416e-ac5b-d9612311f93c`) for TIPLOC, CRS, and coordinates, and from **Knowledgebase Stations** (`P-88ffe920-471c-4fd9-8e0d-95d5b9b7a257`, JSON `P-9c97bd03-e2f2-462d-860a-5bec92700c2d`, spec [RSPS5050](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5050)) for passenger names. NWR CORPUS (`P-4ae3e81c-7907-423b-940f-91ac6fdc69e1`) is the parent set; v1 reads the location slice, not the whole corpus. NWR BPLAN Geography is out of scope (no `shapes.txt` in v1). NaPTAN is not required.
 
@@ -242,8 +245,14 @@ Release tags `v*.*.*` publish the one image. The release is not part of this des
 - No official upstream static GTFS. This process builds the zip.
 - No track-fetcher, Hartford board, or NJ Transit RailData.
 - No second image and no `NR_ROLE`.
-- The data licence is the RTTI v2.0 Open licence and, for the timetable, OGL 3. It is not a right to republish the raw topic.
+- The Darwin data licence that was read is the Push agreement in `docs/licences.md`. It is not a right to sell the feed or to republish the raw topic. The timetable agreement was not in that pack.
 
-## Open point
+Fares (`P-03ed70e9-cc9d-45f3-949b-45adffc70791`) are out of v1. They are a later input to GTFS Fares v2, on their own agreement: free, global, distribution not for commercial gain, one month's notice. They do not block the realtime feed.
 
-One fact blocks production static files, and it is not a design choice. The owner is subscribed to Darwin RTTI v2.0 and is not yet subscribed to Darwin Timetable Files. The snapshots REST product and CORPUS Location are part of this design and are not confirmed as active subscriptions. Until the timetable subscription exists, the static task can be built and tested on fixtures only.
+The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is out of v1. Schedule 1 limits exercise of the rights to the UK, and the Pi is in Boston. Whether processing it there is in scope is open. If it is, the model can later place platform stops and give a VehiclePosition a coordinate taken from the track, rather than none.
+
+## Open points
+
+The owner is not yet subscribed to Darwin Timetable Files. The snapshots product and CORPUS Location are part of this design and are not confirmed as active subscriptions. Until the timetable subscription exists, the static task can be built and tested on fixtures only.
+
+The Track Model territory question above is unanswered. Do not add that product to the pipeline meanwhile.

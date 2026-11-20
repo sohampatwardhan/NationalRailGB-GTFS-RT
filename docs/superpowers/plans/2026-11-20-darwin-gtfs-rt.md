@@ -12,7 +12,7 @@
 
 Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every task includes these.
 
-- Code licence is AGPL-3.0-only. Darwin RTTI v2.0 is the subscribed Open licence. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`.
+- Code licence is AGPL-3.0-only. Data licences are `docs/licences.md`. The published feed is free and is not sold. Attribute times to National Rail. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`. Do not add the NWR Track Model or the fares feed in these tasks.
 - Public forecast times are copied. Working forecasts are not published. No invented delay, platform, or coordinate.
 - `trip_id` is the Darwin RID verbatim. `start_date` and `service_id` are the scheduled start date `YYYYMMDD`.
 - `route_id` and `agency_id` are the TOC code. `route_type` is `2`. `agency_timezone` is `Europe/London`.

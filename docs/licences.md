@@ -80,7 +80,7 @@ Product `P-03ed70e9-cc9d-45f3-949b-45adffc70791`. Publisher: Rail Delivery Group
 | Term | One year, renewing automatically. The consumer may end it on one month's notice. |
 | Retention | Data already received may be kept. |
 
-This is a possible later input to GTFS Fares v2. It is not part of v1, and it does not block the realtime feed.
+This feed is a v1 goal: peak and off-peak validity, published as GTFS Fares v2. It does not block the realtime feeds. The amounts and restriction texts are copied from the file. They are not repriced. Distribution of the result is still not for commercial gain.
 
 ## Not in this pack
 

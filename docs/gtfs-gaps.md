@@ -92,6 +92,36 @@ A code search of `sohampatwardhan/Amtrak-GTFS-RT` on the default branch found no
 
 **Feature request.** No. Issue 560 is the existing discussion. A new issue that only repeats "please do not list passing points" would be a duplicate. The feed follows the cif2gtfs default and omits them.
 
+## 7. Peak and off-peak restrictions
+
+**The feed.** RDG fares, RSPS5045 §4.18.8. A `TR` record bans or qualifies a ticket between `TIME_FROM` and `TIME_TO`. `ARR_DEP_VIA` is `D` (departures from `LOCATION`), `A` (arrivals at `LOCATION`), or `V` (changing at `LOCATION`). `LOCATION` is a CRS, or spaces when the ban is not tied to a station. `MIN_FARE_FLAG` `Y` means the ticket survives but a minimum fare applies. Published examples include restriction PU: not valid on trains timed to depart London Marylebone or Paddington, or Reading, in morning and evening windows, and not valid via London on trains timed to arrive at a London terminal before 10:00 ([National Rail, restriction PU](https://www.nationalrail.co.uk/ticket-types/validity/pu/)).
+
+**Fares v2 today.** `timeframes.txt` and `fare_leg_rules.from_timeframe_group_id` / `to_timeframe_group_id`, added by [pull 357](https://github.com/google/transit/pull/357), test the start or the end of the fare leg. The start is when the rider boards. They do not test a departure from a station in the middle of the leg. A search found no proposal for "not valid on trains departing station Y before time X" where Y is not the boarding stop.
+
+**Encoding.** Blank `LOCATION` with `D` or `A` becomes the complement window on the leg start or leg end. Anything with a CRS, or `ARR_DEP_VIA` `V`, is not encoded as a timeframe. `MIN_FARE_FLAG` `Y` is not encoded as a price.
+
+**Feature request.** Yes. A fare rule that can name a station on the journey, a direction (depart, arrive, or change), and a banned clock window. Pull 357 is the leg-end cousin. Do not file it here.
+
+## 8. Easements and route restrictions
+
+**The feed.** The route file lists locations a route includes or excludes (RSPS5045, routes file). The Routeing Guide adds easements: a positive easement allows a journey the guide would refuse, a negative one forbids a journey the guide would allow ([easement text](https://iblocks-rg-publication.s3.eu-west-1.amazonaws.com/easement_text.pdf)). Restriction PU's notes include a one-train easement from Didcot Parkway.
+
+**Fares v2 today.** `fare_leg_rules` matches origin area, destination area, and network. It has no via list and no avoid list. `fare_leg_join_rules` can glue two legs into one effective leg. [Issue 555](https://github.com/google/transit/issues/555) is about a fare that requires a transfer at a station. It is not an easement and not "not via London". No proposal was found for a route-restriction or easement record.
+
+**Encoding.** Origin and destination areas are written. Via, avoid, and easement text stay in the passenger-readable restriction note. They are not turned into a fake `network_id`.
+
+**Feature request.** Yes, as one proposal covering a via/avoid constraint and a dated exception for a single train. Issue 555 should be linked, not treated as the same request. Do not file it here.
+
+## 9. Railcard eligibility beyond a category name
+
+**The feed.** Some railcard prices are published as their own fare. Others are a discount, a minimum fare, or a rule such as two named people travelling together.
+
+**Fares v2 today.** `rider_categories.txt`, from [pull 511](https://github.com/google/transit/pull/511), names a category and can mark a default. It has no minimum group size and no "must be accompanied" flag.
+
+**Encoding.** A railcard with its own published amount is a `rider_category` on that `fare_product`. Accompanied and group rules are not given a category.
+
+**Feature request.** Yes, for a group-size or accompanied condition on a rider category. Pull 511 names the category and does not say who must travel with them. Do not file it here.
+
 ## Summary
 
 | Gap | Existing google/transit thread | New proposal is warranted |
@@ -103,3 +133,6 @@ A code search of `sohampatwardhan/Amtrak-GTFS-RT` on the default branch found no
 | Formation order and live loading | [Pull 237](https://github.com/google/transit/pull/237) | No. The fields exist. |
 | Coach class and toilet | [Issue 614](https://github.com/google/transit/issues/614) is about doors and exits | Only for class and facilities, and only if free-text `label` is shown to be insufficient. |
 | Passing points | [Issue 560](https://github.com/google/transit/issues/560) | No. |
+| Station-specific and change-at time bans | [Pull 357](https://github.com/google/transit/pull/357) covers the boarding stop and the alighting stop only | Yes. |
+| Easements and via/avoid routes | [Issue 555](https://github.com/google/transit/issues/555) is a required transfer, not a route ban | Yes. |
+| Railcard group and accompanied rules | [Pull 511](https://github.com/google/transit/pull/511) | Yes. A category name is not an eligibility rule. |

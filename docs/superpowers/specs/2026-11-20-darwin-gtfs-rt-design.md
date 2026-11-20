@@ -8,7 +8,7 @@ Documentation in this repository uses British English. GTFS identifiers stay as 
 
 ## Problem
 
-Apps that already consume GTFS-Realtime need Great Britain's national rail realtime: schedules, forecasts, platforms, cancellations, and associations from the Darwin Push Port. They also need a static GTFS feed whose trip and stop ids are the ones the realtime feed uses. National Rail does not publish that pair.
+The v1 product is four things passengers need together: the timetable, realtime positions, alerts, and fares. Fares matter most for peak and off-peak validity, because many passengers do not know when an off-peak ticket may be used. Positions are inferred from Darwin's actual reports. They are not a GPS trace. Shapes, from OpenStreetMap, are part of the static feed and do not block the realtime products. Fares are a v1 goal and do not block those products either.
 
 The owner's [Amtrak-GTFS-RT](https://github.com/sohampatwardhan/Amtrak-GTFS-RT) is the model for the stack and the way the feed is served: one Rust process, one container on GHCR for amd64 and arm64, a Raspberry Pi as the deploy target, a generation manifest, a peer allowlist, and a MobilityData validator in CI. The sources, the licence, and several GTFS mappings have to differ. Those differences are recorded below.
 
@@ -81,9 +81,9 @@ One generation is one static GTFS zip and three protobuf products, plus one side
 
 | Product | Darwin source | GTFS target |
 | --- | --- | --- |
-| Static zip | Darwin Timetable Files, CORPUS Location, Knowledgebase Stations, confirmed platforms, OpenStreetMap via pfaedle | `agency.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar_dates.txt`, `stops.txt`, `shapes.txt`, `feed_info.txt`, and `transfers.txt` only for Next and Link. `shapes.txt` may be absent until the shapes job has run. |
+| Static zip | Darwin Timetable Files, CORPUS Location, Knowledgebase Stations, confirmed platforms, OpenStreetMap via pfaedle, RDG fares | Timetable files as below, plus `shapes.txt` when the shapes job has run, plus Fares v2 files when the fares job has run. Realtime does not wait on either. |
 | TripUpdates | TS forecasts and actuals, cancellations, platforms | One entity per published RID |
-| VehiclePositions | Last reported public location, formation, loading | One entity per RID that has a reported location |
+| VehiclePositions | Darwin actual arrival and departure reports only. No GPS. | One entity per RID with an actual. `STOPPED_AT` a call, or `IN_TRANSIT_TO` the next public call. No latitude. |
 | Alerts | Cancellation reasons, late-running reasons, station messages, train alerts with passenger text | One entity per message |
 | `associations.json` | Association elements | Sidecar, not inside the zip |
 
@@ -196,7 +196,11 @@ No `block_id` is written. The sidecar is `associations.json` beside the zip, sch
 
 ## VehiclePositions
 
-Darwin does not provide a carriage latitude. No position is invented. A VehiclePosition is emitted only when a TS update has reported a public location for the RID. `current_stop_sequence` and `stop_id` are set. `current_status` is `STOPPED_AT` when the last report is an arrival with no later departure, and `IN_TRANSIT_TO` the next public stop otherwise. `vehicle.id` is the RID. `vehicle.label` is `trip_short_name`.
+A VehiclePosition is an inference from Darwin actuals, not a track trace. Darwin's TS message reports an actual arrival or an actual departure at a calling point. It does not report a latitude. This feed never sets `Position`. Shapes do not change that: a polyline is not a vehicle coordinate.
+
+An entity exists only after at least one public actual. `current_stop_sequence` and `stop_id` name that call. `current_status` is `STOPPED_AT` when the latest actual is an arrival and that call has no actual departure yet. Otherwise it is `IN_TRANSIT_TO` the next public call. There is no other status. `vehicle.id` is the RID. `vehicle.label` is `trip_short_name`.
+
+Formation and loading, when Darwin sends them, ride on the same entity. They are not a position.
 
 When a formation is present, `multi_carriage_details` lists every coach. `label` is the coach id. `carriage_sequence` is the order in the current direction of travel, which is how a reverse formation at a divide is expressed. `occupancy_percentage` is Darwin's 0–100 loading for that coach at that location. Loading does not ripple: a later stop keeps the last explicit value only in this process's reading of the formation, and a cleared formation publishes no percentages. Coach class, toilet state, and "detached from the front" have no field; they are gaps. `avgLoading` is a long-run average, not a realtime load, and is not copied into `occupancy_percentage`.
 
@@ -254,7 +258,18 @@ Release tags `v*.*.*` publish the one image. The release is not part of this des
 - No second image and no `NR_ROLE`.
 - The Darwin data licence that was read is the Push agreement in `docs/licences.md`. It is not a right to sell the feed or to republish the raw topic. The timetable agreement was not in that pack.
 
-Fares (`P-03ed70e9-cc9d-45f3-949b-45adffc70791`) are out of v1. They are a later input to GTFS Fares v2, on their own agreement: free, global, distribution not for commercial gain, one month's notice. They do not block the realtime feed.
+## Fares
+
+Fares are a v1 goal. They do not block TripUpdates, VehiclePositions, or Alerts. The source is the weekly full refresh (`P-03ed70e9-cc9d-45f3-949b-45adffc70791`), whose licence is in `docs/licences.md`: free, global, distribution not for commercial gain. The published files are GTFS Fares v2:
+
+- `fare_products.txt` for each published ticket amount (pence in the flow file become a GBP amount). A railcard price that the file already states is its own product.
+- `fare_media.txt` with one row, `national-rail-ticket`, unless the ticket code itself names a medium. No medium is invented.
+- `rider_categories.txt` with adult as the default, plus a railcard category when that card has its own amount in the file. Group rules ("two together", accompanied child) are not invented as categories.
+- `timeframes.txt` and `fare_leg_rules.txt` for RST time restrictions that Fares v2 can say. A TR record ([RSPS5045](https://www.rspaccreditation.org/publicDocumentation.php#RSPS5045) §4.18.8) has `TIME_FROM`, `TIME_TO`, `ARR_DEP_VIA` (`A`, `D`, or `V`), and `LOCATION` (a CRS, or spaces when it is not station-specific). A blank `LOCATION` and `ARR_DEP_VIA` `D` becomes the complement window on `from_timeframe_group_id` (when the ticket may start). A blank `LOCATION` and `ARR_DEP_VIA` `A` becomes `to_timeframe_group_id`. `MIN_FARE_FLAG` `N` means the ticket is not valid in the window. Origin and destination clusters from the flow become `from_area_id` and `to_area_id`.
+
+Station-specific bans, changes, easements, route includes and excludes, and minimum-fare flags are not written as if Fares v2 expressed them. Those gaps are in `docs/gtfs-gaps.md`. The restriction wording from the RST header is kept beside the product so a passenger can still read it.
+
+## Track Model
 
 The NWR Track Model (`P-9b4e960e-8bb6-438b-9722-34ae5768a48f`) is optional and out of scope for v1. The owner has no computer in the UK, and the Pi is in Boston, so this product must never be processed there. Nothing in v1 may depend on it. Shapes come from OpenStreetMap instead. A possible later use, only on a UK host such as Oracle Cloud's London region, and only after the territory clause is confirmed, is to check those shapes. It is not a second source of `shapes.txt`. Darwin, the timetable files, and fares are global and stay on the Pi.
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Publish Great Britain's Darwin Push Port as a static GTFS zip plus GTFS-Realtime TripUpdates, VehiclePositions, and Alerts from one Rust process.
+**Goal:** Publish the GB timetable, inferred VehiclePositions, alerts, and Fares v2 for peak and off-peak validity. Realtime does not wait on fares or on shapes.
 
 **Architecture:** One process downloads Darwin Timetable Files, CORPUS Location, and Knowledgebase Stations, pulls an hourly Push Port v18 snapshot over REST, consumes the Darwin RTTI v2.0 JSON topic, and keeps an in-memory store. A pure builder writes an immutable generation. axum serves the last good generation and never waits on the network.
 
@@ -12,7 +12,7 @@
 
 Copied from `docs/superpowers/specs/2026-11-20-darwin-gtfs-rt-design.md`. Every task includes these.
 
-- Code licence is AGPL-3.0-only. Data licences are `docs/licences.md`. The published feed is free and is not sold. Attribute times to National Rail. Attribute shapes with `Contains OpenStreetMap data © OpenStreetMap contributors`. `shapes.txt` is ODbL 1.0. The rest of the zip is not. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`. Do not add the NWR Track Model or the fares feed in these tasks. Never process the Track Model on the Boston Pi. Darwin, the timetable, and fares are global. Tasks 1 to 8 do not run pfaedle and do not block on `shapes.txt`.
+- Code licence is AGPL-3.0-only. Data licences are `docs/licences.md`. The published feed is free and is not sold. Attribute times to National Rail. Attribute shapes with `Contains OpenStreetMap data © OpenStreetMap contributors`. `shapes.txt` is ODbL 1.0. The rest of the zip is not. Do not serve raw JSON, AVRO, or snapshot bodies. Do not commit `NR_KAFKA_BOOTSTRAP`, `NR_KAFKA_CONSUMER_KEY`, `NR_KAFKA_CONSUMER_SECRET`, or `NR_KAFKA_GROUP_ID`. Do not add the NWR Track Model in these tasks. Never process it on the Boston Pi. Darwin, the timetable, and fares are global. Tasks 1 to 8 do not run pfaedle and do not block on `shapes.txt` or on fares. Fares are Task 10, a v1 goal that does not block realtime.
 - Public forecast times are copied. Working forecasts are not published. No invented delay, platform, or coordinate.
 - `trip_id` is the Darwin RID verbatim. `start_date` and `service_id` are the scheduled start date `YYYYMMDD`.
 - `route_id` and `agency_id` are the TOC code. `route_type` is `2`. `agency_timezone` is `Europe/London`.
@@ -590,7 +590,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the minimum**
 
-Emit an entity only when some call has an actual arrival or departure. The current call is the latest actual. `STOPPED_AT` if that actual is an arrival and the same call has no actual departure. Otherwise `IN_TRANSIT_TO` the next public, non-pass call. Do not set `Position`. `carriage_sequence` follows the formation order. `label` is the coach id only. Set `occupancy_percentage` only when Darwin sent a number. Do not set `occupancy_status`.
+Emit an entity only when some call has an actual arrival or departure. The status is inferred from those actuals. `STOPPED_AT` if the latest actual is an arrival and the same call has no actual departure. Otherwise `IN_TRANSIT_TO` the next public, non-pass call. Do not set `Position`, even when `shapes.txt` exists. `carriage_sequence` follows the formation order. `label` is the coach id only. Set `occupancy_percentage` only when Darwin sent a number. Do not set `occupancy_status`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -801,8 +801,66 @@ git add src/shapes.rs src/static_gtfs.rs README.md
 git commit -m "Add OpenStreetMap shapes without blocking the realtime feeds."
 ```
 
+## Task 10: Fares v2
+
+A v1 goal. It does not block Tasks 1 to 9. Issue #10.
+
+**Files:**
+
+- Create: `src/fares.rs`
+- Test: `src/fares.rs`
+
+**Interfaces:**
+
+- Consumes: flow and RST records parsed from the weekly fares refresh
+- Produces: `fare_products.txt`, `fare_media.txt`, `rider_categories.txt`, `timeframes.txt`, `fare_leg_rules.txt`, merged into the static zip when present
+
+- [ ] **Step 1: Write the failing test**
+
+```rust
+#[test]
+fn blank_location_departure_ban_becomes_a_from_timeframe() {
+    let files = fares_from(flow_off_peak(), rst_depart_before("0930"));
+    assert!(files["timeframes.txt"].contains("09:30:00"));
+    assert!(files["fare_leg_rules.txt"].contains("from_timeframe_group_id"));
+    assert!(files["fare_products.txt"].contains("GBP"));
+}
+
+#[test]
+fn station_specific_ban_is_not_a_timeframe() {
+    let files = fares_from(flow_off_peak(), rst_depart_from("PAD", "0930"));
+    assert!(!files["timeframes.txt"].contains("PAD"));
+    assert!(files["fare_products.txt"].contains("Not valid"));
+}
+```
+
+`rst_depart_before` is a TR with `LOCATION` spaces, `ARR_DEP_VIA` `D`, `MIN_FARE_FLAG` `N`. `rst_depart_from` sets `LOCATION` to `PAD`. The second test's product text carries the RST header sentence. It does not invent a timeframe for Paddington.
+
+- [ ] **Step 2: Run the test**
+
+Run: `cargo test --locked fares::`
+
+Expected: FAIL.
+
+- [ ] **Step 3: Implement the minimum**
+
+Amounts are the flow file's pence, as GBP. Adult is the default rider category. A railcard amount present in the file is another category and product. One `fare_media` row, `national-rail-ticket`. A blank-location `D` ban becomes the complement on `from_timeframe_group_id`. A blank-location `A` ban becomes `to_timeframe_group_id`. CRS-specific rows, `V` rows, easements, route includes and excludes, and `MIN_FARE_FLAG` `Y` are not encoded as rules. The header text is copied onto the product. The realtime loop does not read the fares file.
+
+- [ ] **Step 4: Run the test**
+
+Run: `cargo test --locked fares::`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/fares.rs
+git commit -m "Publish peak and off-peak validity as GTFS Fares v2."
+```
+
 ## Self-review
 
-- Spec coverage: licensing and the "do not amend forecasts" rule are Global Constraints and Tasks 4 and 6. OpenStreetMap shapes are Task 9 and do not block Tasks 1 to 8. Identity, stops, and passing points are Task 3. TripUpdates, platforms, and `NO_DATA` are Task 4. Associations are Task 5. VehiclePositions and loading are Task 6. Alerts are Task 7. HTTP, peers, container, validator, and Dependabot are Tasks 1 and 8. The two owner questions are not tasks.
+- Spec coverage: licensing and the "do not amend forecasts" rule are Global Constraints and Tasks 4 and 6. OpenStreetMap shapes are Task 9 and Fares v2 is Task 10. Neither blocks Tasks 1 to 8. Identity, stops, and passing points are Task 3. TripUpdates, platforms, and `NO_DATA` are Task 4. Associations are Task 5. VehiclePositions and loading are Task 6. Alerts are Task 7. HTTP, peers, container, validator, and Dependabot are Tasks 1 and 8. The two owner questions are not tasks.
 - Placeholders: none. The realtime validator tag is pinned in a file the script requires, not left as a guess in this plan.
 - Types: `Service`, `Call`, `Platform`, `Generation`, `Transfer`, and `build_*` names match across tasks.
